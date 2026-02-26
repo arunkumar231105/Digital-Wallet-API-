@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: wallet_postgres
+    environment:
+      POSTGRES_USER: wallet_user
+      POSTGRES_PASSWORD: wallet_password
+      POSTGRES_DB: wallet_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet_user -d wallet_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: wallet_redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: wallet_backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://wallet_user:wallet_password@postgres:5432/wallet_db
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: super_secret_jwt_key
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 60
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    container_name: wallet_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
